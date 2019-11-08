@@ -28,36 +28,76 @@
 var fs = require('fs'),
     path = require('path'),
     express = require('express'),
+    bodyParser = require('body-parser'),
     images = require('../index');
+
 
 var app = express();
 
-app.use(express.bodyParser({
-    uploadDir: __dirname + '/upload'
-}));
+const multer = require('multer');
+
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, __dirname + '/upload/');
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + file.originalname);
+    }
+});
+
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype.indexOf("image") > -1) {
+        cb(null, true);
+    } else {
+        // rejects storing a file
+        cb(null, false);
+    }
+}
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 1024 * 1024 * 24
+    },
+    fileFilter: fileFilter
+});
+
+
+// config express server packages
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+// app.use(bodyParser({
+//     uploadDir: __dirname + '/upload'
+// }));
 
 app.use(express.static(__dirname + '/upload'));
 
-app.get('/', function(req, res) {
+app.get('/', function (req, res) {
     res.send('<form method="post" enctype="multipart/form-data" action="/upload"><input type="file" name="photo" /><input type="submit" /></form>');
 });
 
-app.post('/upload', function(req, res) {
-    var tmp_path = req.files.photo.path,
+app.post('/upload',upload.single("photo"),function (req, res) {
+    var tmp_path = req.file.path,
         out_path = tmp_path + '.jpg',
         photo;
 
     photo = images(tmp_path);
     photo.size(800)
-        .draw(images('./logo.png'), 800 - 421, photo.height() - 117)
+        .draw(images('./logo.png'), 800 - 421, photo.height()/2)
         .save(out_path, {
-        quality: 80
-    });
+            quality: 80
+        });
 
-    fs.unlink(tmp_path, function(err) {
+    fs.unlink(tmp_path, function (err) {
         if (err) throw err;
         res.send('<a href="/" title="upload"><img src="/' + path.basename(out_path) + '" /></a>');
     });
 });
 
-app.listen(3000);
+app.listen(3000, function () {
+    console.log("Server Listning on port :: 3000");
+    console.log("process.versions.modules :: ",process.versions.modules);
+    
+
+});
